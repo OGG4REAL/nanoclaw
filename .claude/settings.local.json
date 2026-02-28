@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash setup.sh)",
+      "Bash(npx tsx setup/index.ts --step environment)",
+      "Bash(winget install Docker.DockerDesktop --accept-package-agreements --accept-source-agreements)",
+      "Bash(start \"\" \"C:/Program Files/Docker/Docker/Docker Desktop.exe\")",
+      "Bash(docker info)",
+      "Bash(npx tsx setup/index.ts --step container -- --runtime docker)",
+      "Bash(docker version)",
+      "Bash(docker build -t nanoclaw-agent:latest -f container/Dockerfile container/)",
+      "Bash(docker run --rm nanoclaw-agent:latest echo \"Container test OK\")",
+      "Bash(npx tsx setup/index.ts --step whatsapp-auth -- --method qr-browser)",
+      "Bash(npx tsx src/whatsapp-auth.ts)",
+      "Bash(docker build -t nanoclaw-agent:latest .)",
+      "Bash(npx tsx src/whatsapp-auth.ts --method qr-browser)",
+      "Bash(node -e \"const c=require\\(''./store/auth/creds.json''\\);console.log\\(c.me.id.split\\('':''\\)[0].split\\(''@''\\)[0]\\)\")",
+      "Bash(npx tsx setup/index.ts --step mounts -- --empty)",
+      "Bash(npx tsx setup/index.ts --step service)",
+      "Bash(npx tsx setup/index.ts --step verify)",
+      "Bash(npm run build)",
+      "Bash(node dist/index.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://github.com/OGG4REAL/NanoClaw)",
+      "Bash(git remote rename origin upstream)",
+      "Bash(git remote add origin https://github.com/OGG4REAL/NanoClaw.git)",
+      "Bash(git add src/container-runner.ts groups/global/CLAUDE.md groups/main/CLAUDE.md .claude/settings.local.json)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
