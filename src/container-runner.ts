@@ -204,7 +204,12 @@ function buildVolumeMounts(
  * Secrets are never written to disk or mounted as files.
  */
 function readSecrets(): Record<string, string> {
-  return readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL']);
+  return readEnvFile([
+    'CLAUDE_CODE_OAUTH_TOKEN',
+    'ANTHROPIC_API_KEY',
+    'ANTHROPIC_AUTH_TOKEN',
+    'ANTHROPIC_BASE_URL',
+  ]);
 }
 
 function buildContainerArgs(
@@ -280,6 +285,10 @@ export async function runContainerAgent(
 
   const logsDir = path.join(groupDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
+
+  // Create memory directory for daily logs
+  const memoryDir = path.join(groupDir, 'memory');
+  fs.mkdirSync(memoryDir, { recursive: true });
 
   return new Promise((resolve) => {
     const container = spawn(CONTAINER_RUNTIME_BIN, containerArgs, {

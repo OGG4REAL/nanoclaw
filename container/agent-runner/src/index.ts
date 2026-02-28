@@ -18,6 +18,12 @@ import fs from 'fs';
 import path from 'path';
 import { query, HookCallback, PreCompactHookInput, PreToolUseHookInput } from '@anthropic-ai/claude-agent-sdk';
 import { fileURLToPath } from 'url';
+import {
+  loadPersonaConfig,
+  buildSystemPrompt,
+  loadPersonaFile,
+  getLoadedFiles,
+} from './persona-loader.js';
 
 interface ContainerInput {
   prompt: string;
@@ -391,11 +397,18 @@ async function runQuery(
   let messageCount = 0;
   let resultCount = 0;
 
-  // Load global CLAUDE.md as additional system context (shared across all groups)
-  const globalClaudeMdPath = '/workspace/global/CLAUDE.md';
-  let globalClaudeMd: string | undefined;
-  if (!containerInput.isMain && fs.existsSync(globalClaudeMdPath)) {
-    globalClaudeMd = fs.readFileSync(globalClaudeMdPath, 'utf-8');
+  // Load persona files (SOUL.md, USER.md, IDENTITY.md, AGENTS.md, MEMORY.md)
+  // Falls back to CLAUDE.md for backward compatibility
+  const globalPath = '/workspace/global';
+  const groupPath = '/workspace/group';
+
+  const personaConfig = loadPersonaConfig(globalPath, groupPath);
+  const groupClaude = loadPersonaFile(groupPath, 'CLAUDE.md');
+  const systemPromptText = buildSystemPrompt(personaConfig, groupClaude);
+
+  const loadedFiles = getLoadedFiles(personaConfig);
+  if (loadedFiles.length > 0) {
+    log(`Persona files loaded: ${loadedFiles.join(', ')}`);
   }
 
   // Discover additional directories mounted at /workspace/extra/*
@@ -421,8 +434,8 @@ async function runQuery(
       additionalDirectories: extraDirs.length > 0 ? extraDirs : undefined,
       resume: sessionId,
       resumeSessionAt: resumeAt,
-      systemPrompt: globalClaudeMd
-        ? { type: 'preset' as const, preset: 'claude_code' as const, append: globalClaudeMd }
+      systemPrompt: systemPromptText
+        ? { type: 'preset' as const, preset: 'claude_code' as const, append: systemPromptText }
         : undefined,
       allowedTools: [
         'Bash',

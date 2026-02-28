@@ -283,3 +283,108 @@ Use available_groups.json to find the JID for a group. The folder name should be
 // Start the stdio transport
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+// Memory directory for daily logs
+const MEMORY_DIR = '/workspace/group/memory';
+
+server.tool(
+  'write_memory',
+  `Write a note to today's memory file. Use this to remember important information for future sessions.
+
+The memory is stored in memory/YYYY-MM-DD.md and is automatically loaded at the start of future sessions.
+Use this to record:
+- User preferences discovered during conversation
+- Important decisions or agreements
+- Tasks completed or pending
+- Any information worth remembering
+
+Examples:
+- "User prefers concise responses without emojis"
+- "Discussed project timeline: MVP due March 15"
+- "Remember to follow up on the API integration next week"`,
+  {
+    content: z.string().describe('The content to write to memory'),
+    section: z.enum(['summary', 'facts', 'tasks', 'notes']).optional()
+      .describe('Optional section to append to (summary, facts, tasks, notes)'),
+  },
+  async ({ content, section }) => {
+    const today = new Date().toISOString().split('T')[0];
+    const memoryFile = path.join(MEMORY_DIR, `${today}.md`);
+
+    try {
+      // Ensure directory exists
+      fs.mkdirSync(MEMORY_DIR, { recursive: true });
+
+      // Create file with template if doesn't exist
+      if (!fs.existsSync(memoryFile)) {
+        const template = `# Memory - ${today}
+
+## Summary
+
+## Key Facts
+
+## Tasks
+
+## Notes
+`;
+        fs.writeFileSync(memoryFile, template);
+      }
+
+      // Read current content
+      let currentContent = fs.readFileSync(memoryFile, 'utf-8');
+
+      if (section) {
+        // Find the section and append to it
+        const sectionHeader = `## ${section.charAt(0).toUpperCase() + section.slice(1)}`;
+        const sectionIndex = currentContent.indexOf(sectionHeader);
+
+        if (sectionIndex !== -1) {
+          // Find next section or end of file
+          const nextSectionMatch = currentContent.slice(sectionIndex + sectionHeader.length).match(/\n## /);
+          const insertIndex = nextSectionMatch
+            ? sectionIndex + sectionHeader.length + nextSectionMatch.index!
+            : currentContent.length;
+
+          const before = currentContent.slice(0, insertIndex);
+          const after = currentContent.slice(insertIndex);
+          currentContent = `${before}\n- ${content}\n${after}`;
+        } else {
+          // Section doesn't exist, add it
+          currentContent += `\n${sectionHeader}\n- ${content}\n`;
+        }
+      } else {
+        // No section specified, append to Notes section or end
+        const notesIndex = currentContent.indexOf('## Notes');
+        if (notesIndex !== -1) {
+          const nextSectionMatch = currentContent.slice(notesIndex + 8).match(/\n## /);
+          const insertIndex = nextSectionMatch
+            ? notesIndex + 8 + nextSectionMatch.index!
+            : currentContent.length;
+          const before = currentContent.slice(0, insertIndex);
+          const after = currentContent.slice(insertIndex);
+          currentContent = `${before}\n- ${content}\n${after}`;
+        } else {
+          currentContent += `\n- ${content}\n`;
+        }
+      }
+
+      fs.writeFileSync(memoryFile, currentContent);
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Written to memory/${today}.md${section ? ` (section: ${section})` : ''}`,
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Failed to write memory: ${err instanceof Error ? err.message : String(err)}`,
+        }],
+        isError: true,
+      };
+    }
+  },
+);
+
