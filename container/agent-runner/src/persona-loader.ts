@@ -1,6 +1,7 @@
 /**
  * Persona file loader for OpenClaw-style configuration
  * Supports SOUL.md, USER.md, IDENTITY.md, AGENTS.md, MEMORY.md
+ * Also handles BOOTSTRAP.md for first-time setup
  */
 
 import fs from 'fs';
@@ -14,6 +15,8 @@ export interface PersonaConfig {
   memory?: string;
   dailyMemory: string[];
   legacyClaude?: string;
+  bootstrap?: string;
+  isBootstrapMode: boolean;
 }
 
 export const PERSONA_FILES = [
@@ -22,6 +25,7 @@ export const PERSONA_FILES = [
   'USER.md',
   'IDENTITY.md',
   'MEMORY.md',
+  'BOOTSTRAP.md',
 ] as const;
 
 export type PersonaFile = (typeof PERSONA_FILES)[number];
@@ -82,15 +86,21 @@ export function hasNewPersonaFormat(globalPath: string, groupPath: string): bool
 /**
  * Load all persona configuration from global and group paths
  * Global files serve as defaults, group files override
+ *
+ * BOOTSTRAP MODE: If BOOTSTRAP.md exists and SOUL.md doesn't, we're in
+ * first-time setup. Load BOOTSTRAP.md to trigger the initialization flow.
  */
 export function loadPersonaConfig(globalPath: string, groupPath: string): PersonaConfig {
+  // Check for bootstrap mode: BOOTSTRAP.md exists but SOUL.md doesn't
+  const bootstrapFile = loadPersonaFile(globalPath, 'BOOTSTRAP.md');
+  const soulFile = loadPersonaFile(globalPath, 'SOUL.md') || loadPersonaFile(groupPath, 'SOUL.md');
+  const isBootstrapMode = !!(bootstrapFile && !soulFile);
+
   return {
     agents:
       loadPersonaFile(globalPath, 'AGENTS.md') ||
       loadPersonaFile(groupPath, 'AGENTS.md'),
-    soul:
-      loadPersonaFile(globalPath, 'SOUL.md') ||
-      loadPersonaFile(groupPath, 'SOUL.md'),
+    soul: soulFile,
     user:
       loadPersonaFile(globalPath, 'USER.md') ||
       loadPersonaFile(groupPath, 'USER.md'),
@@ -102,17 +112,27 @@ export function loadPersonaConfig(globalPath: string, groupPath: string): Person
       loadPersonaFile(groupPath, 'MEMORY.md'),
     dailyMemory: loadDailyMemory(path.join(groupPath, 'memory')),
     legacyClaude: loadPersonaFile(globalPath, 'CLAUDE.md'),
+    bootstrap: bootstrapFile,
+    isBootstrapMode,
   };
 }
 
 /**
  * Build the system prompt from persona configuration
  * Files are assembled in a specific order for proper weighting
+ *
+ * In BOOTSTRAP MODE: Only load BOOTSTRAP.md, ignore everything else
+ * This forces the AI to discover its identity through conversation
  */
 export function buildSystemPrompt(
   config: PersonaConfig,
   groupClaude?: string,
 ): string {
+  // BOOTSTRAP MODE: Only load bootstrap file
+  if (config.isBootstrapMode && config.bootstrap) {
+    return config.bootstrap;
+  }
+
   const sections: string[] = [];
 
   // 1. AGENTS.md (highest priority - work rules)
@@ -168,6 +188,11 @@ export function buildSystemPrompt(
  * Get list of loaded persona files for logging
  */
 export function getLoadedFiles(config: PersonaConfig): string[] {
+  // Bootstrap mode
+  if (config.isBootstrapMode) {
+    return ['BOOTSTRAP.md (first-time setup)'];
+  }
+
   const loaded: string[] = [];
   if (config.agents) loaded.push('AGENTS.md');
   if (config.soul) loaded.push('SOUL.md');
